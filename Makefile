@@ -5,14 +5,14 @@ RANLIB=ranlib
 LIBNAME=libjpec.a
 CLINAME=jpec
 # LIB_BUILD_MODE: release or debug
-LIB_BUILD_MODE=release
+LIB_BUILD_MODE=debug
 
 INCLUDES= -Isrc -Iinclude
 
 DEFINES= $(INCLUDES)
 _release_cflags= -Os -DNDEBUG
 _debug_cflags= -g -O0
-CFLAGS= $(DEFINES) -std=c99 -Wall -Werror
+CFLAGS=  $(DEFINES) -std=c99 -Wall -Werror 
 CFLAGS+= $(_$(LIB_BUILD_MODE)_cflags)
 
 SRCS = $(wildcard src/*.c)
