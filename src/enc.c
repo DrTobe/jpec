@@ -17,6 +17,7 @@ static void jpec_enc_write_sof0(jpec_enc_t *e);
 static void jpec_enc_write_dht(jpec_enc_t *e);
 static void jpec_enc_write_sos(jpec_enc_t *e);
 static int jpec_enc_next_block(jpec_enc_t *e);
+static void jpec_enc_block_data(jpec_enc_t *e);
 static void jpec_enc_block_dct(jpec_enc_t *e);
 static void jpec_enc_block_quant(jpec_enc_t *e);
 static void jpec_enc_block_zz(jpec_enc_t *e);
@@ -54,6 +55,7 @@ const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
   assert(e && len);
   jpec_enc_open(e);
   while (jpec_enc_next_block(e)) {
+    jpec_enc_block_data(e);
     jpec_enc_block_dct(e);
     jpec_enc_block_quant(e);
     jpec_enc_block_zz(e);
@@ -184,10 +186,27 @@ static int jpec_enc_next_block(jpec_enc_t *e) {
   return rv;
 }
 
-static void jpec_enc_block_dct(jpec_enc_t *e) {
-  assert(e && e->bnum >= 0);
+static void jpec_enc_block_data(jpec_enc_t *e) {
 #define JPEC_BLOCK(col,row) e->img[(((e->by + row) < e->h) ? e->by + row : e->h-1) * \
                             e->w + (((e->bx + col) < e->w) ? e->bx + col : e->w-1)]
+    for (int row = 0; row < 8; row++) {
+        e->block.data[row*8+0] = JPEC_BLOCK(0, row);
+        e->block.data[row*8+1] = JPEC_BLOCK(1, row);
+        e->block.data[row*8+2] = JPEC_BLOCK(2, row);
+        e->block.data[row*8+3] = JPEC_BLOCK(3, row);
+        e->block.data[row*8+4] = JPEC_BLOCK(4, row);
+        e->block.data[row*8+5] = JPEC_BLOCK(5, row);
+        e->block.data[row*8+6] = JPEC_BLOCK(6, row);
+        e->block.data[row*8+7] = JPEC_BLOCK(7, row);
+    }
+#undef JPEC_BLOCK
+}
+
+static void jpec_enc_block_dct(jpec_enc_t *e) {
+// The former define was moved to jpec_enc_block_data(). This define here is simple enough
+// to be written in code directly, but defining it was the least refactoring effort.
+#define JPEC_BLOCK(col,row) e->block.data[row*8+col]
+  assert(e && e->bnum >= 0);
   const float* coeff = jpec_dct;
   float tmp[64];
   for (int row = 0; row < 8; row++) {

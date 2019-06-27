@@ -8,6 +8,7 @@
 
 /** Structure used to hold and process an image 8x8 block */
 typedef struct jpec_block_t_ {
+  uint8_t data[64];         /* Image data in this block */
   float dct[64];            /* DCT coefficients */
   int quant[64];            /* Quantization coefficients */
   int zz[64];               /* Zig-Zag coefficients */
