@@ -56,4 +56,8 @@ void jpec_enc_del(jpec_enc_t *e);
  */
 const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len);
 
+void jpec_enc_start(jpec_enc_t *e);
+void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data);
+const uint8_t *jpec_enc_finish(jpec_enc_t *e, int *len);
+
 #endif

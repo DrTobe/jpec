@@ -18,6 +18,7 @@ static void jpec_enc_write_dht(jpec_enc_t *e);
 static void jpec_enc_write_sos(jpec_enc_t *e);
 static int jpec_enc_next_block(jpec_enc_t *e);
 static void jpec_enc_block_data(jpec_enc_t *e);
+static void jpec_enc_block_data_segment(jpec_enc_t *e, uint8_t const *segment_data, uint16_t block_in_segment);
 static void jpec_enc_block_dct(jpec_enc_t *e);
 static void jpec_enc_block_quant(jpec_enc_t *e);
 static void jpec_enc_block_zz(jpec_enc_t *e);
@@ -66,13 +67,37 @@ const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
   return e->buf->stream;
 }
 
+void jpec_enc_start(jpec_enc_t *e) {
+  assert(e && len);
+  jpec_enc_open(e);
+}
+void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data) {
+    // In comparison to full-image encoding, we have another stop condition here: We stop when
+    // we have reached the end of the segment. Consequently, jpec_enc_next_block() should
+    // always succeed.
+    for (uint16_t block_in_segment = 0; block_in_segment < e->w8 / 8; block_in_segment++) {
+        int nextblock = jpec_enc_next_block(e);
+        assert(nextblock);
+        jpec_enc_block_data_segment(e, segment_data, block_in_segment);
+        jpec_enc_block_dct(e);
+        jpec_enc_block_quant(e);
+        jpec_enc_block_zz(e);
+        e->hskel->encode_block(e->hskel->opq, &e->block, e->buf);
+    }
+}
+const uint8_t *jpec_enc_finish(jpec_enc_t *e, int *len) {
+  jpec_enc_close(e);
+  *len = e->buf->len;
+  return e->buf->stream;
+}
+
 /* Update the internal quantization matrix according to the asked quality */
 static void jpec_enc_init_dqt(jpec_enc_t *e) {
   assert(e);
   float qualf = (float) e->qual;
   float scale = (e->qual < 50) ? (50/qualf) : (2 - qualf/50);
   for (int i = 0; i < 64; i++) {
-    int a = (int) ((float) jpec_qzr[i]*scale + 0.5);
+    int a = (int) ((float) jpec_qzr[i]*scale + 0.5f);
     a = (a < 1) ? 1 : ((a > 255) ? 255 : a);
     e->dqt[i] = a;
   }
@@ -188,6 +213,24 @@ static int jpec_enc_next_block(jpec_enc_t *e) {
 
 static void jpec_enc_block_data(jpec_enc_t *e) {
 #define JPEC_BLOCK(col,row) e->img[(((e->by + row) < e->h) ? e->by + row : e->h-1) * \
+                            e->w + (((e->bx + col) < e->w) ? e->bx + col : e->w-1)]
+    for (int row = 0; row < 8; row++) {
+        e->block.data[row*8+0] = JPEC_BLOCK(0, row);
+        e->block.data[row*8+1] = JPEC_BLOCK(1, row);
+        e->block.data[row*8+2] = JPEC_BLOCK(2, row);
+        e->block.data[row*8+3] = JPEC_BLOCK(3, row);
+        e->block.data[row*8+4] = JPEC_BLOCK(4, row);
+        e->block.data[row*8+5] = JPEC_BLOCK(5, row);
+        e->block.data[row*8+6] = JPEC_BLOCK(6, row);
+        e->block.data[row*8+7] = JPEC_BLOCK(7, row);
+    }
+#undef JPEC_BLOCK
+}
+static void jpec_enc_block_data_segment(jpec_enc_t *e, uint8_t const *segment_data, uint16_t block_in_segment) {
+    // The original JPEC_BLOCK define indexes the data in the e->img array which holds a whole image.
+    // Additionally, it checks if we have reached the image border. We will index the data in segment_data
+    // and modulo 8 the calculated array row.
+#define JPEC_BLOCK(col,row) segment_data[((((e->by + row) < e->h) ? e->by + row : e->h-1) % 8) * \
                             e->w + (((e->bx + col) < e->w) ? e->bx + col : e->w-1)]
     for (int row = 0; row < 8; row++) {
         e->block.data[row*8+0] = JPEC_BLOCK(0, row);
