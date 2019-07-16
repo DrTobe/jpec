@@ -67,9 +67,10 @@ const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
   return e->buf->stream;
 }
 
-void jpec_enc_start(jpec_enc_t *e) {
+int jpec_enc_start(jpec_enc_t *e) {
   assert(e && len);
   jpec_enc_open(e);
+  return e->buf->len;
 }
 void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data) {
     // In comparison to full-image encoding, we have another stop condition here: We stop when
