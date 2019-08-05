@@ -47,6 +47,8 @@ struct jpec_enc_t_ {
   /** Huffman entropy coder */
   //jpec_huff_skel_t hskel;
   jpec_huff_state_t huff;
+  // Errorcode during encoding
+  int8_t error;
 };
 
 #endif

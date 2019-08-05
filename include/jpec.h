@@ -45,7 +45,8 @@ typedef struct jpec_enc_t_ jpec_enc_t;
  */
 //void jpec_enc_del(jpec_enc_t *e);
 
-void jpec_enc_init(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q);
+void jpec_enc_init_stack(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q, uint8_t *stack_buffer, int size);
+void jpec_enc_init_heap(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q);
 void jpec_enc_cleanup(jpec_enc_t *e);
 
 /*
@@ -58,10 +59,10 @@ void jpec_enc_cleanup(jpec_enc_t *e);
  * Note: the caller should take care to copy or save the JPEG blob before
  * calling `jpec_enc_del` since the blob will no longer be maintained after.
  */
-const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len);
+int8_t jpec_enc_run(jpec_enc_t *e, const uint8_t **jpec_stream, int *header_len, int *total_len);
 
 int jpec_enc_start(jpec_enc_t *e); // Returns the header length
 void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data);
-const uint8_t *jpec_enc_finish(jpec_enc_t *e, int *len);
+int8_t jpec_enc_finish(jpec_enc_t *e, const uint8_t **jpec_stream, int *total_len);
 
 #endif

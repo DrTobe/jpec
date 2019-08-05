@@ -9,7 +9,7 @@
 /* Private function prototypes */
 static void jpec_enc_init_dqt(jpec_enc_t *e);
 static void jpec_enc_open(jpec_enc_t *e);
-static void jpec_enc_close(jpec_enc_t *e);
+static int8_t jpec_enc_close(jpec_enc_t *e);
 static void jpec_enc_write_soi(jpec_enc_t *e);
 static void jpec_enc_write_app0(jpec_enc_t *e);
 static void jpec_enc_write_dqt(jpec_enc_t *e);
@@ -45,7 +45,7 @@ void jpec_enc_del(jpec_enc_t *e) {
 }
 */
 
-void jpec_enc_init(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q) {
+void jpec_enc_init_base(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q) {
   assert(img && w > 0 && !(w & 0x7) && h > 0 && !(h & 0x7));
   e->img = img;
   e->w = w;
@@ -56,18 +56,32 @@ void jpec_enc_init(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, in
   e->bnum = -1;
   e->bx = -1;
   e->by = -1;
-  int bsiz = JPEC_ENC_HEAD_SIZ + e->bmax * JPEC_ENC_BLOCK_SIZ;
-  jpec_buffer_init(&e->buf, bsiz);
   //e->hskel = malloc(sizeof(*e->hskel));
+  e->error = 0;
+}
+
+void jpec_enc_init_stack(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q, uint8_t *stack_buffer, int size) {
+  assert(img && w > 0 && !(w & 0x7) && h > 0 && !(h & 0x7));
+  jpec_enc_init_base(e, img, w, h, q);
+  jpec_buffer_init(&e->buf, stack_buffer, size);
+}
+
+void jpec_enc_init_heap(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q) {
+  assert(img && w > 0 && !(w & 0x7) && h > 0 && !(h & 0x7));
+  jpec_enc_init_base(e, img, w, h, q);
+  int bsiz = JPEC_ENC_HEAD_SIZ + e->bmax * JPEC_ENC_BLOCK_SIZ;
+    bsiz = 0x1e00;
+  jpec_buffer_init(&e->buf, NULL, bsiz);
 }
 
 void jpec_enc_cleanup(jpec_enc_t *e) {
     jpec_buffer_finish(&e->buf);
 }
 
-const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
+int8_t jpec_enc_run(jpec_enc_t *e, const uint8_t **jpec_stream, int *header_len, int *total_len) {
   assert(e && len);
   jpec_enc_open(e);
+  *header_len = e->buf.len;
   while (jpec_enc_next_block(e)) {
     jpec_enc_block_data(e);
     jpec_enc_block_dct(e);
@@ -76,9 +90,10 @@ const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
     //e->hskel->encode_block(e->hskel->opq, &e->block, e->buf);
     jpec_huff_encode_block(&e->huff, &e->buf, e->block.zz, e->block.len);
   }
-  jpec_enc_close(e);
-  *len = e->buf.len;
-  return e->buf.stream;
+  int8_t errorcode = jpec_enc_close(e);
+  *total_len = e->buf.len;
+  *jpec_stream = e->buf.stream;
+  return errorcode;
 }
 
 int jpec_enc_start(jpec_enc_t *e) {
@@ -101,10 +116,11 @@ void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data) {
         jpec_huff_encode_block(&e->huff, &e->buf, e->block.zz, e->block.len);
     }
 }
-const uint8_t *jpec_enc_finish(jpec_enc_t *e, int *len) {
-  jpec_enc_close(e);
+int8_t jpec_enc_finish(jpec_enc_t *e, const uint8_t **jpec_stream, int *len) {
+  int8_t errorcode = jpec_enc_close(e);
   *len = e->buf.len;
-  return e->buf.stream;
+  *jpec_stream = e->buf.stream;
+  return errorcode;
 }
 
 /* Update the internal quantization matrix according to the asked quality */
@@ -132,11 +148,11 @@ static void jpec_enc_open(jpec_enc_t *e) {
   jpec_enc_write_sos(e);
 }
 
-static void jpec_enc_close(jpec_enc_t *e) {
+static int8_t jpec_enc_close(jpec_enc_t *e) {
   assert(e);
   //e->hskel->del(e->hskel->opq);
   jpec_huff_finish(&e->huff);
-  jpec_buffer_write_2bytes(&e->buf, 0xFFD9); /* EOI marker */
+  return jpec_buffer_write_2bytes(&e->buf, 0xFFD9); /* EOI marker */
 }
 
 static void jpec_enc_write_soi(jpec_enc_t *e) {

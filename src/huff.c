@@ -78,7 +78,7 @@ void jpec_huff_encode_block(jpec_huff_state_t *h, jpec_block_t *block, jpec_buff
 */
 
 //static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *s) {
-void jpec_huff_encode_block(jpec_huff_state_t *s, jpec_buffer_t *buf, int zz[], int zz_len) {
+void jpec_huff_encode_block(jpec_huff_state_t *s, jpec_buffer_t *buf, int *zz, int zz_len) {
   assert(zz && s);
   s->buf = buf; // Only this line here is new on 2019-08-05
   int val, bits, nbits;
