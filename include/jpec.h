@@ -2,6 +2,7 @@
 #define JPEC_H
 
 #include <stdint.h>
+#include "enc.h"
 
 /*************************************************
  * JPEG Encoder
@@ -32,17 +33,20 @@ typedef struct jpec_enc_t_ jpec_enc_t;
  * retains a pointer to it. Thus the image data must not be deleted
  * nor change until the encoder object gets deleted.
  */
-jpec_enc_t *jpec_enc_new(const uint8_t *img, uint16_t w, uint16_t h);
+//jpec_enc_t *jpec_enc_new(const uint8_t *img, uint16_t w, uint16_t h);
 /*
  * `q` specifies the JPEG quality factor in 0..100
  */
-jpec_enc_t *jpec_enc_new2(const uint8_t *img, uint16_t w, uint16_t h, int q);
+//jpec_enc_t *jpec_enc_new2(const uint8_t *img, uint16_t w, uint16_t h, int q);
 
 /*
  * Release a JPEG encoder object
  * `e` specifies the encoder object
  */
-void jpec_enc_del(jpec_enc_t *e);
+//void jpec_enc_del(jpec_enc_t *e);
+
+void jpec_enc_init(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q);
+void jpec_enc_cleanup(jpec_enc_t *e);
 
 /*
  * Run the JPEG encoding

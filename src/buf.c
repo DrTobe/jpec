@@ -3,6 +3,7 @@
 
 #define JPEC_BUFFER_INIT_SIZ (0x8000-1000)
 
+/*
 jpec_buffer_t *jpec_buffer_new(void) {
   return jpec_buffer_new2(-1);
 }
@@ -10,16 +11,27 @@ jpec_buffer_t *jpec_buffer_new(void) {
 jpec_buffer_t *jpec_buffer_new2(int siz) {
   if (siz < 0) siz = 0;
   jpec_buffer_t *b = malloc(sizeof(*b));
+  jpec_buffer_init(b, siz);
+  return b;
+}
+*/
+
+void jpec_buffer_init(jpec_buffer_t *b, int siz) {
   b->stream = siz > 0 ? malloc(siz) : NULL;
   b->siz = siz;
   b->len = 0;
-  return b;
 }
 
+/*
 void jpec_buffer_del(jpec_buffer_t *b) {
   assert(b);
   if (b->stream) free(b->stream);
   free(b);
+}
+*/
+void jpec_buffer_finish(jpec_buffer_t *b) {
+    if (b->stream)
+        free (b->stream);
 }
 
 void jpec_buffer_write_byte(jpec_buffer_t *b, int val) {

@@ -20,9 +20,10 @@
 #endif
 
 /* Private function prototypes */
-static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *s);
+//NOT REQUIRED ANYMORE static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *s);
 static void jpec_huff_write_bits(jpec_huff_state_t *s, unsigned int bits, int n);
 
+/*
 void jpec_huff_skel_init(jpec_huff_skel_t *skel) {
   assert(skel);
   memset(skel, 0, sizeof(*skel));
@@ -39,15 +40,29 @@ jpec_huff_t *jpec_huff_new(void) {
   h->state.buf = NULL;
   return h;
 }
+*/
 
+void jpec_huff_init(jpec_huff_state_t *h) {
+    h->buffer = 0;
+    h->nbits = 0;
+    h->dc = 0;
+    h->buf = NULL;
+}
+
+/*
 void jpec_huff_del(jpec_huff_t *h) {
   assert(h);
-  /* Flush any remaining bits and fill in the incomple byte (if any) with 1-s */
+  // Flush any remaining bits and fill in the incomple byte (if any) with 1-s *
   jpec_huff_write_bits(&h->state, 0x7F, 7);
   free(h);
 }
+*/
+void jpec_huff_finish(jpec_huff_state_t *h) {
+  jpec_huff_write_bits(h, 0x7F, 7);
+}
 
-void jpec_huff_encode_block(jpec_huff_t *h, jpec_block_t *block, jpec_buffer_t *buf) {
+/*
+void jpec_huff_encode_block(jpec_huff_state_t *h, jpec_block_t *block, jpec_buffer_t *buf) {
   assert(h && block && buf);
   jpec_huff_state_t state;
   state.buffer = h->state.buffer;
@@ -60,14 +75,17 @@ void jpec_huff_encode_block(jpec_huff_t *h, jpec_block_t *block, jpec_buffer_t *
   h->state.dc = state.dc;
   h->state.buf = state.buf;
 }
+*/
 
-static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *s) {
-  assert(block && s);
+//static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *s) {
+void jpec_huff_encode_block(jpec_huff_state_t *s, jpec_buffer_t *buf, int zz[], int zz_len) {
+  assert(zz && s);
+  s->buf = buf; // Only this line here is new on 2019-08-05
   int val, bits, nbits;
   /* DC coefficient encoding */
-  if (block->len > 0) {
-    val = block->zz[0] - s->dc;
-    s->dc = block->zz[0];
+  if (zz_len > 0) {
+    val = zz[0] - s->dc;
+    s->dc = zz[0];
   }
   else {
     val = -s->dc;
@@ -83,8 +101,8 @@ static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *
   if (nbits) jpec_huff_write_bits(s, (unsigned int) bits, nbits);
   /* AC coefficients encoding (w/ RLE of zeros) */
   int nz = 0;
-  for (int i = 1; i < block->len; i++) {
-    if ((val = block->zz[i]) == 0) nz++;
+  for (int i = 1; i < zz_len; i++) {
+    if ((val = zz[i]) == 0) nz++;
     else {
       while (nz >= 16) {
         jpec_huff_write_bits(s, jpec_ac_code[0xF0], jpec_ac_len[0xF0]); /* ZRL code */
@@ -102,7 +120,7 @@ static void jpec_huff_encode_block_impl(jpec_block_t *block, jpec_huff_state_t *
       nz = 0;
     }
   }
-  if (block->len < 64) {
+  if (zz_len < 64) {
     jpec_huff_write_bits(s, jpec_ac_code[0x00], jpec_ac_len[0x00]); /* EOB marker */
   }
 }

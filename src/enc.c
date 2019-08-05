@@ -4,7 +4,7 @@
 
 #define JPEG_ENC_DEF_QUAL  80  /* default quality factor */
 #define JPEC_ENC_HEAD_SIZ  330 /* header typical size in bytes */
-#define JPEC_ENC_BLOCK_SIZ  15 /* 8x8 entropy coded block typical size in bytes ... We observed 4 bytes per block? */
+#define JPEC_ENC_BLOCK_SIZ  13 /* 8x8 entropy coded block typical size in bytes ... We observed 4 bytes per block? */
 
 /* Private function prototypes */
 static void jpec_enc_init_dqt(jpec_enc_t *e);
@@ -23,6 +23,7 @@ static void jpec_enc_block_dct(jpec_enc_t *e);
 static void jpec_enc_block_quant(jpec_enc_t *e);
 static void jpec_enc_block_zz(jpec_enc_t *e);
 
+/*
 jpec_enc_t *jpec_enc_new(const uint8_t *img, uint16_t w, uint16_t h) {
   return jpec_enc_new2(img, w, h, JPEG_ENC_DEF_QUAL);
 }
@@ -30,6 +31,22 @@ jpec_enc_t *jpec_enc_new(const uint8_t *img, uint16_t w, uint16_t h) {
 jpec_enc_t *jpec_enc_new2(const uint8_t *img, uint16_t w, uint16_t h, int q) {
   assert(img && w > 0 && !(w & 0x7) && h > 0 && !(h & 0x7));
   jpec_enc_t *e = malloc(sizeof(*e));
+  jpec_enc_init(e, img, w, h, q);
+  return e;
+}
+*/
+
+/*
+void jpec_enc_del(jpec_enc_t *e) {
+  assert(e);
+  if (e->buf) jpec_buffer_del(e->buf);
+  free(e->hskel);
+  free(e);
+}
+*/
+
+void jpec_enc_init(jpec_enc_t *e, const uint8_t *img, uint16_t w, uint16_t h, int q) {
+  assert(img && w > 0 && !(w & 0x7) && h > 0 && !(h & 0x7));
   e->img = img;
   e->w = w;
   e->w8 = (((w-1)>>3)+1)<<3;
@@ -40,16 +57,12 @@ jpec_enc_t *jpec_enc_new2(const uint8_t *img, uint16_t w, uint16_t h, int q) {
   e->bx = -1;
   e->by = -1;
   int bsiz = JPEC_ENC_HEAD_SIZ + e->bmax * JPEC_ENC_BLOCK_SIZ;
-  e->buf = jpec_buffer_new2(bsiz);
-  e->hskel = malloc(sizeof(*e->hskel));
-  return e;
+  jpec_buffer_init(&e->buf, bsiz);
+  //e->hskel = malloc(sizeof(*e->hskel));
 }
 
-void jpec_enc_del(jpec_enc_t *e) {
-  assert(e);
-  if (e->buf) jpec_buffer_del(e->buf);
-  free(e->hskel);
-  free(e);
+void jpec_enc_cleanup(jpec_enc_t *e) {
+    jpec_buffer_finish(&e->buf);
 }
 
 const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
@@ -60,17 +73,18 @@ const uint8_t *jpec_enc_run(jpec_enc_t *e, int *len) {
     jpec_enc_block_dct(e);
     jpec_enc_block_quant(e);
     jpec_enc_block_zz(e);
-    e->hskel->encode_block(e->hskel->opq, &e->block, e->buf);
+    //e->hskel->encode_block(e->hskel->opq, &e->block, e->buf);
+    jpec_huff_encode_block(&e->huff, &e->buf, e->block.zz, e->block.len);
   }
   jpec_enc_close(e);
-  *len = e->buf->len;
-  return e->buf->stream;
+  *len = e->buf.len;
+  return e->buf.stream;
 }
 
 int jpec_enc_start(jpec_enc_t *e) {
-  assert(e && len);
+  assert(e);
   jpec_enc_open(e);
-  return e->buf->len;
+  return e->buf.len;
 }
 void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data) {
     // In comparison to full-image encoding, we have another stop condition here: We stop when
@@ -83,13 +97,14 @@ void jpec_enc_run_segment(jpec_enc_t *e, uint8_t const *segment_data) {
         jpec_enc_block_dct(e);
         jpec_enc_block_quant(e);
         jpec_enc_block_zz(e);
-        e->hskel->encode_block(e->hskel->opq, &e->block, e->buf);
+        //e->hskel->encode_block(e->hskel->opq, &e->block, e->buf);
+        jpec_huff_encode_block(&e->huff, &e->buf, e->block.zz, e->block.len);
     }
 }
 const uint8_t *jpec_enc_finish(jpec_enc_t *e, int *len) {
   jpec_enc_close(e);
-  *len = e->buf->len;
-  return e->buf->stream;
+  *len = e->buf.len;
+  return e->buf.stream;
 }
 
 /* Update the internal quantization matrix according to the asked quality */
@@ -106,7 +121,8 @@ static void jpec_enc_init_dqt(jpec_enc_t *e) {
 
 static void jpec_enc_open(jpec_enc_t *e) {
   assert(e);
-  jpec_huff_skel_init(e->hskel);
+  //jpec_huff_skel_init(e->hskel);
+  jpec_huff_init(&e->huff);
   jpec_enc_init_dqt(e);
   jpec_enc_write_soi(e);
   jpec_enc_write_app0(e);
@@ -118,88 +134,89 @@ static void jpec_enc_open(jpec_enc_t *e) {
 
 static void jpec_enc_close(jpec_enc_t *e) {
   assert(e);
-  e->hskel->del(e->hskel->opq);
-  jpec_buffer_write_2bytes(e->buf, 0xFFD9); /* EOI marker */
+  //e->hskel->del(e->hskel->opq);
+  jpec_huff_finish(&e->huff);
+  jpec_buffer_write_2bytes(&e->buf, 0xFFD9); /* EOI marker */
 }
 
 static void jpec_enc_write_soi(jpec_enc_t *e) {
   assert(e);
-  jpec_buffer_write_2bytes(e->buf, 0xFFD8); /* SOI marker */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFD8); /* SOI marker */
 }
 
 static void jpec_enc_write_app0(jpec_enc_t *e) {
   assert(e);
-  jpec_buffer_write_2bytes(e->buf, 0xFFE0); /* APP0 marker */
-  jpec_buffer_write_2bytes(e->buf, 0x0010); /* segment length */
-  jpec_buffer_write_byte(e->buf, 0x4A);     /* 'J' */
-  jpec_buffer_write_byte(e->buf, 0x46);     /* 'F' */
-  jpec_buffer_write_byte(e->buf, 0x49);     /* 'I' */
-  jpec_buffer_write_byte(e->buf, 0x46);     /* 'F' */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* '\0' */
-  jpec_buffer_write_2bytes(e->buf, 0x0101); /* v1.1 */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* no density unit */
-  jpec_buffer_write_2bytes(e->buf, 0x0001); /* X density = 1 */
-  jpec_buffer_write_2bytes(e->buf, 0x0001); /* Y density = 1 */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* thumbnail width = 0 */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* thumbnail height = 0 */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFE0); /* APP0 marker */
+  jpec_buffer_write_2bytes(&e->buf, 0x0010); /* segment length */
+  jpec_buffer_write_byte(&e->buf, 0x4A);     /* 'J' */
+  jpec_buffer_write_byte(&e->buf, 0x46);     /* 'F' */
+  jpec_buffer_write_byte(&e->buf, 0x49);     /* 'I' */
+  jpec_buffer_write_byte(&e->buf, 0x46);     /* 'F' */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* '\0' */
+  jpec_buffer_write_2bytes(&e->buf, 0x0101); /* v1.1 */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* no density unit */
+  jpec_buffer_write_2bytes(&e->buf, 0x0001); /* X density = 1 */
+  jpec_buffer_write_2bytes(&e->buf, 0x0001); /* Y density = 1 */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* thumbnail width = 0 */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* thumbnail height = 0 */
 }
 
 static void jpec_enc_write_dqt(jpec_enc_t *e) {
   assert(e);
-  jpec_buffer_write_2bytes(e->buf, 0xFFDB); /* DQT marker */
-  jpec_buffer_write_2bytes(e->buf, 0x0043); /* segment length */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* table 0, 8-bit precision (0) */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFDB); /* DQT marker */
+  jpec_buffer_write_2bytes(&e->buf, 0x0043); /* segment length */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* table 0, 8-bit precision (0) */
   for (int i = 0; i < 64; i++) {
-    jpec_buffer_write_byte(e->buf, e->dqt[jpec_zz[i]]);
+    jpec_buffer_write_byte(&e->buf, e->dqt[jpec_zz[i]]);
   }
 }
 
 static void jpec_enc_write_sof0(jpec_enc_t *e) {
   assert(e);
-  jpec_buffer_write_2bytes(e->buf, 0xFFC0); /* SOF0 marker */
-  jpec_buffer_write_2bytes(e->buf, 0x000B); /* segment length */
-  jpec_buffer_write_byte(e->buf, 0x08);     /* 8-bit precision */
-  jpec_buffer_write_2bytes(e->buf, e->h);
-  jpec_buffer_write_2bytes(e->buf, e->w);
-  jpec_buffer_write_byte(e->buf, 0x01);     /* 1 component only (grayscale) */
-  jpec_buffer_write_byte(e->buf, 0x01);     /* component ID = 1 */
-  jpec_buffer_write_byte(e->buf, 0x11);     /* no subsampling */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* quantization table 0 */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFC0); /* SOF0 marker */
+  jpec_buffer_write_2bytes(&e->buf, 0x000B); /* segment length */
+  jpec_buffer_write_byte(&e->buf, 0x08);     /* 8-bit precision */
+  jpec_buffer_write_2bytes(&e->buf, e->h);
+  jpec_buffer_write_2bytes(&e->buf, e->w);
+  jpec_buffer_write_byte(&e->buf, 0x01);     /* 1 component only (grayscale) */
+  jpec_buffer_write_byte(&e->buf, 0x01);     /* component ID = 1 */
+  jpec_buffer_write_byte(&e->buf, 0x11);     /* no subsampling */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* quantization table 0 */
 }
 
 static void jpec_enc_write_dht(jpec_enc_t *e) {
   assert(e);
-  jpec_buffer_write_2bytes(e->buf, 0xFFC4);          /* DHT marker */
-  jpec_buffer_write_2bytes(e->buf, 19 + jpec_dc_nb_vals); /* segment length */
-  jpec_buffer_write_byte(e->buf, 0x00);              /* table 0 (DC), type 0 (0 = Y, 1 = UV) */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFC4);          /* DHT marker */
+  jpec_buffer_write_2bytes(&e->buf, 19 + jpec_dc_nb_vals); /* segment length */
+  jpec_buffer_write_byte(&e->buf, 0x00);              /* table 0 (DC), type 0 (0 = Y, 1 = UV) */
   for (int i = 0; i < 16; i++) {
-    jpec_buffer_write_byte(e->buf, jpec_dc_nodes[i+1]);
+    jpec_buffer_write_byte(&e->buf, jpec_dc_nodes[i+1]);
   }
   for (int i = 0; i < jpec_dc_nb_vals; i++) {
-    jpec_buffer_write_byte(e->buf, jpec_dc_vals[i]);
+    jpec_buffer_write_byte(&e->buf, jpec_dc_vals[i]);
   }
-  jpec_buffer_write_2bytes(e->buf, 0xFFC4);           /* DHT marker */
-  jpec_buffer_write_2bytes(e->buf, 19 + jpec_ac_nb_vals);
-  jpec_buffer_write_byte(e->buf, 0x10);               /* table 1 (AC), type 0 (0 = Y, 1 = UV) */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFC4);           /* DHT marker */
+  jpec_buffer_write_2bytes(&e->buf, 19 + jpec_ac_nb_vals);
+  jpec_buffer_write_byte(&e->buf, 0x10);               /* table 1 (AC), type 0 (0 = Y, 1 = UV) */
   for (int i = 0; i < 16; i++) {
-    jpec_buffer_write_byte(e->buf, jpec_ac_nodes[i+1]);
+    jpec_buffer_write_byte(&e->buf, jpec_ac_nodes[i+1]);
   }
   for (int i = 0; i < jpec_ac_nb_vals; i++) {
-    jpec_buffer_write_byte(e->buf, jpec_ac_vals[i]);
+    jpec_buffer_write_byte(&e->buf, jpec_ac_vals[i]);
   }
 }
 
 static void jpec_enc_write_sos(jpec_enc_t *e) {
   assert(e);
-  jpec_buffer_write_2bytes(e->buf, 0xFFDA); /* SOS marker */
-  jpec_buffer_write_2bytes(e->buf, 8);      /* segment length */
-  jpec_buffer_write_byte(e->buf, 0x01);     /* nb. components */
-  jpec_buffer_write_byte(e->buf, 0x01);     /* Y component ID */
-  jpec_buffer_write_byte(e->buf, 0x00);     /* Y HT = 0 */
+  jpec_buffer_write_2bytes(&e->buf, 0xFFDA); /* SOS marker */
+  jpec_buffer_write_2bytes(&e->buf, 8);      /* segment length */
+  jpec_buffer_write_byte(&e->buf, 0x01);     /* nb. components */
+  jpec_buffer_write_byte(&e->buf, 0x01);     /* Y component ID */
+  jpec_buffer_write_byte(&e->buf, 0x00);     /* Y HT = 0 */
   /* segment end */
-  jpec_buffer_write_byte(e->buf, 0x00);
-  jpec_buffer_write_byte(e->buf, 0x3F);
-  jpec_buffer_write_byte(e->buf, 0x00);
+  jpec_buffer_write_byte(&e->buf, 0x00);
+  jpec_buffer_write_byte(&e->buf, 0x3F);
+  jpec_buffer_write_byte(&e->buf, 0x00);
 }
 
 static int jpec_enc_next_block(jpec_enc_t *e) {

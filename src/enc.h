@@ -5,6 +5,7 @@
 
 #include <jpec.h>
 #include "buf.h"
+#include "huff.h"
 
 /** Structure used to hold and process an image 8x8 block */
 typedef struct jpec_block_t_ {
@@ -16,11 +17,14 @@ typedef struct jpec_block_t_ {
 } jpec_block_t;
 
 /** Skeleton for an Huffman entropy coder */
+// Removed in favor of direct implementation
+/*
 typedef struct jpec_huff_skel_t_ {
   void *opq;
   void (*del)(void *opq);
   void (*encode_block)(void *opq, jpec_block_t *block, jpec_buffer_t *buf);
 } jpec_huff_skel_t;
+*/
 
 /** JPEG encoder */
 struct jpec_enc_t_ {
@@ -30,7 +34,7 @@ struct jpec_enc_t_ {
   uint16_t h;                           /* image height */
   uint16_t w8;                          /* w rounded to upper multiple of 8 */
   /** JPEG extensible byte buffer */
-  jpec_buffer_t *buf;
+  jpec_buffer_t buf;
   /** Compression parameters */
   int qual;                             /* JPEG quality factor */
   int dqt[64];                          /* scaled quantization matrix */
@@ -41,7 +45,8 @@ struct jpec_enc_t_ {
   uint16_t by;                          /* block start Y */
   jpec_block_t block;                   /* block data */
   /** Huffman entropy coder */
-  jpec_huff_skel_t *hskel;
+  //jpec_huff_skel_t hskel;
+  jpec_huff_state_t huff;
 };
 
 #endif
