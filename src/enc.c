@@ -79,7 +79,7 @@ void jpec_enc_cleanup(jpec_enc_t *e) {
 }
 
 int8_t jpec_enc_run(jpec_enc_t *e, const uint8_t **jpec_stream, int *header_len, int *total_len) {
-  assert(e && len);
+  assert(e && header_len && total_len);
   jpec_enc_open(e);
   *header_len = e->buf.len;
   while (jpec_enc_next_block(e)) {
