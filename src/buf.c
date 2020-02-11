@@ -63,7 +63,7 @@ int8_t jpec_buffer_write_byte(jpec_buffer_t *b, int val) {
 }
 
 int8_t jpec_buffer_write_2bytes(jpec_buffer_t *b, int val) {
-  assert(b);
+  assert(b); // For Keil uVision projects: Add NDEBUG define to avoid "Undefined symbol __aeabi_assert"
   int8_t err = jpec_buffer_write_byte(b, (val >> 8) & 0xFF);
   err |= jpec_buffer_write_byte(b, val & 0xFF);
   return err;
